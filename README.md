@@ -76,6 +76,3 @@ tests/
 └── test_evaluate.py
 ```
 
-## License
-
-MIT
