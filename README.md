@@ -1,32 +1,21 @@
 # EmbeddingCustom
 
-Fine-tuned T5 embedding model — encoder-only, trained with Multiple Negatives Ranking Loss (MNRL).
+Fine-tuned T5 embedding model — encoder-only, trained with Multiple Negatives Ranking Loss.
 
-## Structure
+## Features
 
-```
-EmbeddingCustom/
-├── model/
-│   ├── model.py      # T5EmbeddingModel — encoder, pooling (mean/cls), L2 norm
-│   ├── train.py      # Fine-tuning loop — PairDataset, MNRL loss, AdamW + warmup
-│   └── infer.py      # Load checkpoint, encode sentences
-├── eval/
-│   ├── metrics.py    # MRR@k, Recall@k, NDCG@k, MAP@k
-│   └── evaluate.py   # Full retrieval eval pipeline + CLI
-└── tests/
-    ├── test_model.py     # Shape, normalization, pooling, similarity
-    ├── test_train.py     # Dataset, collate, loss properties
-    ├── test_metrics.py   # Metric math correctness
-    └── test_evaluate.py  # End-to-end evaluate() pipeline
-```
+- **T5 encoder-only** — decoder discarded, mean or CLS pooling, optional L2 normalization
+- **MNRL training** — in-batch negatives, no explicit negative mining needed
+- **Retrieval eval** — MRR@k, NDCG@k, Recall@k, MAP@k out of the box
+- **Simple data format** — `(query, positive)` pairs for training, JSONL for eval
 
-## Quickstart
+## Quick Start
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-### Train
+**Train**
 
 ```python
 from model.train import train
@@ -38,44 +27,55 @@ pairs = [
 train(pairs, base_model="t5-base", epochs=3, batch_size=32, save_path="outputs/checkpoint")
 ```
 
-### Infer
+**Infer**
 
 ```python
 from model.infer import load_model, encode
 
 model, tokenizer = load_model("outputs/checkpoint", base_model="t5-base")
 embeddings = encode(["sentence one", "sentence two"], model, tokenizer)
-# embeddings: torch.Tensor (N, hidden_dim), L2-normalized
+# shape: (N, hidden_dim), L2-normalized
 ```
 
-### Evaluate
+**Evaluate**
 
 ```bash
 python eval/evaluate.py --data eval.jsonl --checkpoint outputs/checkpoint --base-model t5-base
 ```
 
-Eval data format (JSONL):
+Eval data format (JSONL — one query per line):
+
 ```json
 {"query": "...", "positives": ["..."], "corpus": ["...", "...", "..."]}
 ```
 
-
-### Test
+**Test**
 
 ```bash
 pytest
 ```
 
-## Model
+## Why MNRL?
 
-`T5EmbeddingModel` wraps `T5EncoderModel` (decoder discarded). Forward pass:
+Standard contrastive loss needs explicit hard negatives — expensive to mine. MNRL treats every other item in the batch as a negative. Larger batch = harder negatives, no mining pipeline needed.
 
-1. Encode tokens → last hidden states `(B, L, D)`
-2. Pool → `(B, D)` via mean or CLS
-3. L2 normalize (optional)
+## Structure
 
-## Training
+```
+model/
+├── model.py      # T5EmbeddingModel
+├── train.py      # Fine-tuning loop
+└── infer.py      # Encode sentences from checkpoint
+eval/
+├── metrics.py    # MRR, Recall, NDCG, MAP
+└── evaluate.py   # Retrieval eval pipeline + CLI
+tests/
+├── test_model.py
+├── test_train.py
+├── test_metrics.py
+└── test_evaluate.py
+```
 
-MNRL treats every other item in the batch as a negative. No explicit negative mining needed — larger batches = harder negatives.
+## License
 
-Key hyperparameters: `lr=2e-5`, `batch_size=32`, `warmup_ratio=0.1`, `weight_decay=0.01`.
+MIT

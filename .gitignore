@@ -45,3 +45,4 @@ Thumbs.db
 
 # Weights & Biases
 wandb/
+.gstack/
